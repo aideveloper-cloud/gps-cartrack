@@ -1,0 +1,22 @@
+/node_modules
+/.next
+/out
+/build
+*.tsbuildinfo
+next-env.d.ts
+
+# demo (Vite SPA)
+/demo/node_modules
+/demo/dist
+
+# env
+.env
+.env*.local
+
+# prisma / sqlite
+/prisma/dev.db
+/prisma/dev.db-journal
+
+# os
+.DS_Store
+Thumbs.db

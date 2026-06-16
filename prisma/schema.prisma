@@ -1,0 +1,135 @@
+// Prisma schema for the freight / delivery management system.
+// NOTE: SQLite does not support native enums, so role/status are stored as
+// strings. The allowed values are centralized in lib/constants.ts.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id           String    @id @default(cuid())
+  name         String
+  email        String    @unique
+  passwordHash String
+  role         String // ADMIN | ISSUER | PICKER | DRIVER
+  active       Boolean   @default(true)
+  createdAt    DateTime  @default(now())
+
+  sessions       Session[]
+  drivingVehicle Vehicle?  @relation("VehicleDriver")
+  issuedOrders   Order[]   @relation("OrderIssuer")
+  pickedOrders   Order[]   @relation("OrderPicker")
+  drivenOrders   Order[]   @relation("OrderDriver")
+  statusLogs     StatusLog[]
+}
+
+model Session {
+  id        String   @id @default(cuid())
+  token     String   @unique
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+}
+
+model Product {
+  id        String   @id @default(cuid())
+  sku       String   @unique
+  name      String
+  unit      String   @default("ชิ้น")
+  stockQty  Int      @default(0)
+  createdAt DateTime @default(now())
+
+  orderItems OrderItem[]
+}
+
+model Vehicle {
+  id           String   @id @default(cuid())
+  plate        String   @unique // ทะเบียนรถ
+  name         String? // ชื่อเล่น/รุ่นรถ
+  sinoDeviceId String? // device id / IMEI บน Sino Tracker
+  active       Boolean  @default(true)
+  createdAt    DateTime @default(now())
+
+  driverId String? @unique
+  driver   User?   @relation("VehicleDriver", fields: [driverId], references: [id])
+
+  orders      Order[]
+  trackPoints TrackPoint[]
+}
+
+model Order {
+  id            String    @id @default(cuid())
+  code          String    @unique // เลขที่ใบจ่ายสินค้า เช่น DO-20260616-001
+  customerName  String
+  customerPhone String?
+  note          String?
+  status        String    @default("BILLED") // BILLED | CHECKING | OPEN | ACCEPTED | IN_TRANSIT | DELIVERED | CANCELLED
+
+  // ต้นทาง (จุดรับสินค้า) — กำหนดโดย Picker, ปักหมุดบนแผนที่
+  pickupAddress String?
+  pickupLat     Float?
+  pickupLng     Float?
+
+  // ปลายทาง (จุดส่ง) — ที่อยู่จาก Issuer, พิกัดปักหมุดโดย Picker
+  deliveryAddress String
+  deliveryLat     Float?
+  deliveryLng     Float?
+
+  createdAt    DateTime  @default(now())
+  openedAt     DateTime? // เปิดงาน
+  acceptedAt   DateTime? // คนขับรับงาน
+  dispatchedAt DateTime?
+  deliveredAt  DateTime?
+
+  issuerId String
+  issuer   User   @relation("OrderIssuer", fields: [issuerId], references: [id])
+
+  pickerId String?
+  picker   User?   @relation("OrderPicker", fields: [pickerId], references: [id])
+
+  driverId String?
+  driver   User?   @relation("OrderDriver", fields: [driverId], references: [id])
+
+  vehicleId String?
+  vehicle   Vehicle? @relation(fields: [vehicleId], references: [id])
+
+  items      OrderItem[]
+  statusLogs StatusLog[]
+}
+
+model OrderItem {
+  id        String @id @default(cuid())
+  orderId   String
+  order     Order  @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  productId String
+  product   Product @relation(fields: [productId], references: [id])
+  qty       Int
+  pickedQty Int    @default(0)
+}
+
+model StatusLog {
+  id        String   @id @default(cuid())
+  orderId   String
+  order     Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  status    String
+  note      String?
+  userId    String?
+  user      User?    @relation(fields: [userId], references: [id])
+  createdAt DateTime @default(now())
+}
+
+model TrackPoint {
+  id         String   @id @default(cuid())
+  vehicleId  String
+  vehicle    Vehicle  @relation(fields: [vehicleId], references: [id], onDelete: Cascade)
+  lat        Float
+  lng        Float
+  speed      Float?
+  recordedAt DateTime @default(now())
+}
